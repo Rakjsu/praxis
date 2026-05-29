@@ -1,0 +1,19 @@
+{
+  "name": "Diablo",
+  "toggle_hotkey": "f8",
+  "skills": [
+    { "name": "Habilidade 1", "key": "1", "interval_ms": 1500, "enabled": true },
+    { "name": "Habilidade 2", "key": "2", "interval_ms": 3000, "enabled": true },
+    { "name": "Habilidade 3", "key": "3", "interval_ms": 6000, "enabled": true },
+    { "name": "Habilidade 4", "key": "4", "interval_ms": 8000, "enabled": false }
+  ],
+  "potion": {
+    "enabled": false,
+    "key": "q",
+    "region": [0, 0, 0, 0],
+    "color": [190, 30, 30],
+    "tolerance": 70,
+    "threshold_pct": 0.45,
+    "cooldown_ms": 2000
+  }
+}

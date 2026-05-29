@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Derivar versão da tag
+        id: ver
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Gerar ícone
+        run: python tools/make_icon.py
+
+      - name: Build do executável
+        run: python tools/build.py
+
+      - name: Instalar Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Compilar instalador
+        run: iscc /DMyAppVersion=${{ steps.ver.outputs.version }} installer/praxis.iss
+
+      - name: Publicar Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installer/Output/Praxis-Setup-${{ steps.ver.outputs.version }}.exe
+          generate_release_notes: true
