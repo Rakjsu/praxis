@@ -7,8 +7,18 @@ e o projeto adota [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 ## [Não lançado]
 
 ## [0.4.0] - 2026-05-28
+### Adicionado
+- **Detecção de cooldown por ícone** (⚙ por skill): só dispara quando a skill
+  está pronta na tela.
+- **Cast condicional**: skill dispara só quando vida/recurso está acima/abaixo
+  de X%.
+- **System tray** (pystray): minimizar para a bandeja com menu Mostrar/Toggle/Sair.
+- **Troca de perfil por hotkey** global.
+- **Preview de regiões**: mostra na tela os retângulos das regiões configuradas.
+- Testes do motor (condição/cooldown) no CI.
 ### Alterado
-- _(sem notas)_
+- O motor passa a **ler a barra de vida/recurso mesmo com a auto-poção
+  desligada** (desacopla leitura de uso), alimentando as condições de cast.
 
 ## [0.3.0] - 2026-05-28
 ### Adicionado
