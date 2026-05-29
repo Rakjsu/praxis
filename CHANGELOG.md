@@ -7,8 +7,15 @@ e o projeto adota [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 ## [Não lançado]
 
 ## [0.2.0] - 2026-05-28
+### Adicionado
+- Suíte de testes (pytest) e CI de qualidade (`ruff` + `pytest`) em push/PR.
+- Overlay de status sempre-no-topo (ON/OFF + vida lida).
+- Painel de Opções: iniciar minimizado, log em arquivo e **tecla de pânico**
+  (padrão `F9`, para tudo na hora).
+- Captura de tela multi-monitor (seleção de região em qualquer monitor).
 ### Alterado
-- _(sem notas)_
+- Auto-update agora **verifica o SHA256** do instalador antes de executar; o
+  release passa a publicar o arquivo `.exe.sha256`.
 
 ## [0.1.1] - 2026-05-28
 ### Adicionado
