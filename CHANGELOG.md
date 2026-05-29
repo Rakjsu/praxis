@@ -6,6 +6,10 @@ e o projeto adota [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
+## [0.2.0] - 2026-05-28
+### Alterado
+- _(sem notas)_
+
 ## [0.1.1] - 2026-05-28
 ### Adicionado
 - Sistema de versionamento SemVer com fonte única (`praxis/__init__.py`):
@@ -28,6 +32,7 @@ e o projeto adota [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Instalador `.exe` (Inno Setup) e build de executável portátil (PyInstaller).
 - Ícone próprio do app.
 
-[Não lançado]: https://github.com/Rakjsu/praxis/compare/v0.1.1...HEAD
+[Não lançado]: https://github.com/Rakjsu/praxis/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Rakjsu/praxis/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/Rakjsu/praxis/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Rakjsu/praxis/releases/tag/v0.1.0
