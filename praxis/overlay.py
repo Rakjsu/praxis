@@ -24,6 +24,8 @@ class StatusOverlay(tk.Toplevel):
 
         self._status = tk.StringVar(value="Praxis: OFF")
         self._health = tk.StringVar(value="Vida: —")
+        self._resource = tk.StringVar(value="Recurso: —")
+        self._stats = tk.StringVar(value="—")
 
         frame = tk.Frame(self, bg="#11111b", padx=10, pady=6)
         frame.pack()
@@ -32,9 +34,14 @@ class StatusOverlay(tk.Toplevel):
             font=("Segoe UI", 10, "bold"),
         )
         self._status_lbl.pack(anchor="w")
+        for var in (self._health, self._resource):
+            tk.Label(
+                frame, textvariable=var, fg="#cdd6f4", bg="#11111b",
+                font=("Segoe UI", 10),
+            ).pack(anchor="w")
         tk.Label(
-            frame, textvariable=self._health, fg="#cdd6f4", bg="#11111b",
-            font=("Segoe UI", 10),
+            frame, textvariable=self._stats, fg="#7f849c", bg="#11111b",
+            font=("Segoe UI", 8),
         ).pack(anchor="w")
 
         # Arrastar a janela.
@@ -51,10 +58,22 @@ class StatusOverlay(tk.Toplevel):
     def _on_drag(self, e: tk.Event) -> None:
         self.geometry(f"+{e.x_root - self._drag[0]}+{e.y_root - self._drag[1]}")
 
-    def update_state(self, running: bool, health: float | None) -> None:
+    def update_state(
+        self,
+        running: bool,
+        health: float | None = None,
+        resource: float | None = None,
+        stats: dict | None = None,
+    ) -> None:
         self._status.set(f"Praxis: {'ON' if running else 'OFF'}")
         self._status_lbl.config(fg="#a6e3a1" if running else "#9aa0b5")
-        if health is None:
-            self._health.set("Vida: —")
+        self._health.set("Vida: —" if health is None else f"Vida: {health:.0%}")
+        self._resource.set("Recurso: —" if resource is None else f"Recurso: {resource:.0%}")
+        if stats:
+            up = int(stats.get("uptime", 0))
+            self._stats.set(
+                f"casts {stats.get('casts', 0)} · poções {stats.get('potions', 0)} "
+                f"· {up // 60:02d}:{up % 60:02d}"
+            )
         else:
-            self._health.set(f"Vida: {health:.0%}")
+            self._stats.set("—")

@@ -12,13 +12,18 @@ via GitHub.
 ## Recursos
 
 - **Rotação de skills** — cada skill dispara uma tecla em um intervalo configurável.
+- **Skill em "hold"** — mantém uma tecla/botão pressionado (ataque básico/canalizado).
+- **Combo / sequência** — rotação ordenada com delay por passo (build rotation), com loop.
 - **Auto-poção** — lê uma região da barra de vida e usa poção quando a vida cai
-  abaixo de um limite (com cooldown).
+  abaixo de um limite (com cooldown). Há um 2º watcher para **recurso/mana**.
+- **Jitter de tempo** — variação aleatória nos intervalos (ritmo menos robótico).
+- **Foreground-gating** — só envia input quando a janela-alvo está em foco.
 - **Perfis** — salve/carregue configurações por jogo (JSON). Vem com um perfil
   de exemplo para Diablo.
 - **Hotkey global** — liga/desliga o macro mesmo com o jogo em foco (padrão `F8`).
 - **Tecla de pânico** — para tudo imediatamente (padrão `F9`).
-- **Overlay de status** — janelinha sempre-no-topo com ON/OFF e a vida lida.
+- **Overlay de status** — janelinha sempre-no-topo com ON/OFF, vida, recurso e
+  estatísticas (casts, poções, uptime).
 - **Multi-monitor** — a captura de região funciona em qualquer monitor.
 - **Auto-update** — verifica novas versões no GitHub, **valida o SHA256** e
   instala com um clique.

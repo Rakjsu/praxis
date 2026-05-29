@@ -102,25 +102,42 @@ def _send(*events: INPUT) -> None:
     _SendInput(n, arr, ctypes.sizeof(INPUT))
 
 
-def tap(key: str, hold_ms: int = 30) -> bool:
-    """Pressiona e solta uma tecla (ou botão do mouse). Retorna False se desconhecida."""
+def key_down(key: str) -> bool:
+    """Pressiona (sem soltar) uma tecla ou botão do mouse. False se desconhecida."""
     key = key.strip().lower()
-
     if key == "mouse_left":
         _send(_mouse_event(MOUSEEVENTF_LEFTDOWN))
-        time.sleep(hold_ms / 1000)
-        _send(_mouse_event(MOUSEEVENTF_LEFTUP))
         return True
     if key == "mouse_right":
         _send(_mouse_event(MOUSEEVENTF_RIGHTDOWN))
-        time.sleep(hold_ms / 1000)
-        _send(_mouse_event(MOUSEEVENTF_RIGHTUP))
         return True
-
     sc = SCANCODES.get(key)
     if sc is None:
         return False
     _send(_kb_event(sc, keyup=False))
-    time.sleep(hold_ms / 1000)
+    return True
+
+
+def key_up(key: str) -> bool:
+    """Solta uma tecla ou botão do mouse previamente pressionado."""
+    key = key.strip().lower()
+    if key == "mouse_left":
+        _send(_mouse_event(MOUSEEVENTF_LEFTUP))
+        return True
+    if key == "mouse_right":
+        _send(_mouse_event(MOUSEEVENTF_RIGHTUP))
+        return True
+    sc = SCANCODES.get(key)
+    if sc is None:
+        return False
     _send(_kb_event(sc, keyup=True))
+    return True
+
+
+def tap(key: str, hold_ms: int = 30) -> bool:
+    """Pressiona e solta uma tecla (ou botão do mouse). Retorna False se desconhecida."""
+    if not key_down(key):
+        return False
+    time.sleep(hold_ms / 1000)
+    key_up(key)
     return True

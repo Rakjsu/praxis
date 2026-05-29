@@ -2,10 +2,10 @@
   "name": "Diablo",
   "toggle_hotkey": "f8",
   "skills": [
-    { "name": "Habilidade 1", "key": "1", "interval_ms": 1500, "enabled": true },
-    { "name": "Habilidade 2", "key": "2", "interval_ms": 3000, "enabled": true },
-    { "name": "Habilidade 3", "key": "3", "interval_ms": 6000, "enabled": true },
-    { "name": "Habilidade 4", "key": "4", "interval_ms": 8000, "enabled": false }
+    { "name": "Habilidade 1", "key": "1", "interval_ms": 1500, "enabled": true, "hold": false },
+    { "name": "Habilidade 2", "key": "2", "interval_ms": 3000, "enabled": true, "hold": false },
+    { "name": "Habilidade 3", "key": "3", "interval_ms": 6000, "enabled": true, "hold": false },
+    { "name": "Ataque básico", "key": "mouse_left", "interval_ms": 8000, "enabled": false, "hold": true }
   ],
   "potion": {
     "enabled": false,
@@ -15,5 +15,25 @@
     "tolerance": 70,
     "threshold_pct": 0.45,
     "cooldown_ms": 2000
-  }
+  },
+  "resource": {
+    "enabled": false,
+    "key": "w",
+    "region": [0, 0, 0, 0],
+    "color": [40, 80, 200],
+    "tolerance": 70,
+    "threshold_pct": 0.2,
+    "cooldown_ms": 2000
+  },
+  "combo": {
+    "enabled": false,
+    "loop": true,
+    "steps": [
+      { "key": "4", "delay_ms": 300 },
+      { "key": "3", "delay_ms": 500 },
+      { "key": "2", "delay_ms": 800 }
+    ]
+  },
+  "target_window": "Diablo",
+  "jitter_pct": 0
 }

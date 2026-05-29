@@ -102,19 +102,21 @@ class SkillRow:
         self.name = tk.StringVar(value=skill.name)
         self.key = tk.StringVar(value=skill.key)
         self.interval = tk.IntVar(value=skill.interval_ms)
+        self.hold = tk.BooleanVar(value=skill.hold)
 
         self.frame = ttk.Frame(parent)
         ttk.Checkbutton(self.frame, variable=self.enabled).grid(row=0, column=0, padx=2)
-        ttk.Entry(self.frame, textvariable=self.name, width=16).grid(row=0, column=1, padx=2)
+        ttk.Entry(self.frame, textvariable=self.name, width=14).grid(row=0, column=1, padx=2)
         ttk.Combobox(
-            self.frame, textvariable=self.key, values=KEY_VALUES, width=10
+            self.frame, textvariable=self.key, values=KEY_VALUES, width=9
         ).grid(row=0, column=2, padx=2)
         ttk.Spinbox(
             self.frame, from_=50, to=600000, increment=50,
             textvariable=self.interval, width=8,
         ).grid(row=0, column=3, padx=2)
+        ttk.Checkbutton(self.frame, variable=self.hold).grid(row=0, column=4, padx=2)
         ttk.Button(self.frame, text="X", width=3,
-                   command=lambda: on_remove(self)).grid(row=0, column=4, padx=2)
+                   command=lambda: on_remove(self)).grid(row=0, column=5, padx=2)
         self.frame.pack(fill="x", pady=1)
 
     def to_skill(self) -> Skill:
@@ -123,10 +125,184 @@ class SkillRow:
             key=self.key.get().strip().lower() or "1",
             interval_ms=max(50, int(self.interval.get() or 50)),
             enabled=self.enabled.get(),
+            hold=self.hold.get(),
         )
 
     def destroy(self) -> None:
         self.frame.destroy()
+
+
+class ComboStepRow:
+    """Uma linha editável de passo de combo (tecla + delay)."""
+
+    def __init__(self, parent: tk.Misc, step, on_remove) -> None:
+        self.key = tk.StringVar(value=step.key)
+        self.delay = tk.IntVar(value=step.delay_ms)
+        self.frame = ttk.Frame(parent)
+        ttk.Label(self.frame, text="tecla").grid(row=0, column=0, padx=2)
+        ttk.Combobox(self.frame, textvariable=self.key, values=KEY_VALUES,
+                     width=9).grid(row=0, column=1, padx=2)
+        ttk.Label(self.frame, text="delay ms").grid(row=0, column=2, padx=2)
+        ttk.Spinbox(self.frame, from_=20, to=60000, increment=20,
+                    textvariable=self.delay, width=8).grid(row=0, column=3, padx=2)
+        ttk.Button(self.frame, text="X", width=3,
+                   command=lambda: on_remove(self)).grid(row=0, column=4, padx=2)
+        self.frame.pack(fill="x", pady=1)
+
+    def to_step(self):
+        from .models import ComboStep
+        return ComboStep(
+            key=self.key.get().strip().lower() or "1",
+            delay_ms=max(20, int(self.delay.get() or 20)),
+        )
+
+    def destroy(self) -> None:
+        self.frame.destroy()
+
+
+class PotionSection:
+    """Seção de auto-poção reutilizável (usada para Vida e Recurso)."""
+
+    def __init__(self, parent: tk.Misc, app: "MacroApp", title: str, rule: PotionRule) -> None:
+        self.app = app
+        self.enabled = tk.BooleanVar(value=rule.enabled)
+        self.key = tk.StringVar(value=rule.key)
+        self.region_var = tk.StringVar(
+            value=",".join(map(str, rule.region)) if any(rule.region) else "(não definida)"
+        )
+        self.threshold = tk.IntVar(value=int(rule.threshold_pct * 100))
+        self.cooldown = tk.IntVar(value=rule.cooldown_ms)
+        self.color = tk.StringVar(value=",".join(str(c) for c in rule.color))
+        self.tol = tk.IntVar(value=rule.tolerance)
+
+        f = ttk.LabelFrame(parent, text=title)
+        f.pack(fill="x", padx=8, pady=4)
+        ttk.Checkbutton(f, text="Ativar", variable=self.enabled).grid(
+            row=0, column=0, sticky="w", padx=4, pady=2)
+        ttk.Label(f, text="Tecla:").grid(row=0, column=1, sticky="e")
+        ttk.Combobox(f, textvariable=self.key, values=KEY_VALUES, width=10).grid(
+            row=0, column=2, padx=4)
+
+        ttk.Label(f, text="Região:").grid(row=1, column=0, sticky="e", padx=4)
+        ttk.Label(f, textvariable=self.region_var).grid(row=1, column=1, columnspan=2, sticky="w")
+        ttk.Button(f, text="Selecionar região", command=self._select_region).grid(row=1, column=3, padx=4)
+        ttk.Button(f, text="Detectar cor", command=self._detect_color).grid(row=1, column=4, padx=4)
+
+        ttk.Label(f, text="Disparar abaixo de (%):").grid(row=2, column=0, columnspan=2, sticky="e")
+        ttk.Spinbox(f, from_=1, to=99, textvariable=self.threshold, width=6).grid(
+            row=2, column=2, padx=4, sticky="w")
+        ttk.Label(f, text="Cooldown (ms):").grid(row=2, column=3, sticky="e")
+        ttk.Spinbox(f, from_=100, to=60000, increment=100, textvariable=self.cooldown,
+                    width=8).grid(row=2, column=4, padx=4)
+
+        ttk.Label(f, text="Cor (R,G,B):").grid(row=3, column=0, columnspan=2, sticky="e")
+        ttk.Entry(f, textvariable=self.color, width=12).grid(row=3, column=2, sticky="w", padx=4)
+        ttk.Label(f, text="Tolerância:").grid(row=3, column=3, sticky="e")
+        ttk.Spinbox(f, from_=5, to=200, textvariable=self.tol, width=6).grid(
+            row=3, column=4, padx=4, sticky="w")
+        ttk.Button(f, text="Testar leitura", command=self._test_read).grid(
+            row=4, column=0, columnspan=2, sticky="w", padx=4, pady=4)
+
+    def _parse_region(self) -> list[int]:
+        raw = self.region_var.get().strip("()[] ")
+        try:
+            parts = [int(x.strip()) for x in raw.split(",")]
+            if len(parts) == 4:
+                return parts
+        except Exception:
+            pass
+        return [0, 0, 0, 0]
+
+    def _select_region(self) -> None:
+        region = self.app.pick_region()
+        if region:
+            self.region_var.set(",".join(str(c) for c in region))
+            self.app.log(f"Região definida: {region}")
+
+    def _detect_color(self) -> None:
+        x1, y1, x2, y2 = self._parse_region()
+        if x2 <= x1 or y2 <= y1:
+            messagebox.showinfo("Cor", "Defina a região primeiro.")
+            return
+        try:
+            color = screen.sample_color((x1 + x2) // 2, (y1 + y2) // 2)
+        except Exception as exc:
+            messagebox.showerror("Erro", f"Falha ao ler cor: {exc}")
+            return
+        self.color.set(",".join(str(c) for c in color))
+        self.app.log(f"Cor detectada: {color}")
+
+    def _test_read(self) -> None:
+        rule = self.to_potion()
+        if not rule.is_configured():
+            messagebox.showinfo("Teste", "Ative e defina a região primeiro.")
+            return
+        try:
+            frac = screen.health_fraction(rule.region, rule.color, rule.tolerance)
+        except Exception as exc:
+            messagebox.showerror("Erro", f"Falha na leitura: {exc}")
+            return
+        self.app.log(f"Leitura atual: {frac:.0%} (dispara abaixo de {rule.threshold_pct:.0%})")
+
+    def to_potion(self) -> PotionRule:
+        try:
+            color = [int(c) for c in self.color.get().split(",")][:3]
+            if len(color) != 3:
+                raise ValueError
+        except Exception:
+            color = [190, 30, 30]
+        return PotionRule(
+            enabled=self.enabled.get(),
+            key=self.key.get().strip().lower() or "q",
+            region=self._parse_region(),
+            color=color,
+            tolerance=int(self.tol.get() or 70),
+            threshold_pct=int(self.threshold.get() or 45) / 100,
+            cooldown_ms=int(self.cooldown.get() or 2000),
+        )
+
+    def apply(self, rule: PotionRule) -> None:
+        self.enabled.set(rule.enabled)
+        self.key.set(rule.key)
+        self.region_var.set(
+            ",".join(map(str, rule.region)) if any(rule.region) else "(não definida)"
+        )
+        self.threshold.set(int(rule.threshold_pct * 100))
+        self.cooldown.set(rule.cooldown_ms)
+        self.color.set(",".join(str(c) for c in rule.color))
+        self.tol.set(rule.tolerance)
+
+
+class ScrollableFrame(ttk.Frame):
+    """Frame com rolagem vertical para acomodar várias seções."""
+
+    def __init__(self, master: tk.Misc) -> None:
+        super().__init__(master)
+        self._canvas = tk.Canvas(self, highlightthickness=0)
+        vsb = ttk.Scrollbar(self, orient="vertical", command=self._canvas.yview)
+        self.interior = ttk.Frame(self._canvas)
+        self.interior.bind(
+            "<Configure>",
+            lambda _e: self._canvas.configure(scrollregion=self._canvas.bbox("all")),
+        )
+        self._win = self._canvas.create_window((0, 0), window=self.interior, anchor="nw")
+        self._canvas.bind(
+            "<Configure>", lambda e: self._canvas.itemconfig(self._win, width=e.width)
+        )
+        self._canvas.configure(yscrollcommand=vsb.set)
+        self._canvas.pack(side="left", fill="both", expand=True)
+        vsb.pack(side="right", fill="y")
+        self._canvas.bind("<Enter>", lambda _e: self._bind_wheel())
+        self._canvas.bind("<Leave>", lambda _e: self._unbind_wheel())
+
+    def _bind_wheel(self) -> None:
+        self._canvas.bind_all("<MouseWheel>", self._on_wheel)
+
+    def _unbind_wheel(self) -> None:
+        self._canvas.unbind_all("<MouseWheel>")
+
+    def _on_wheel(self, e: tk.Event) -> None:
+        self._canvas.yview_scroll(int(-e.delta / 120), "units")
 
 
 class OptionsDialog(tk.Toplevel):
@@ -186,6 +362,7 @@ class MacroApp(tk.Tk):
         self.hotkeys = HotkeyManager()
         self.panic_hotkeys = HotkeyManager()
         self.skill_rows: list[SkillRow] = []
+        self.combo_rows: list[ComboStepRow] = []
         self._pending_update: updater.UpdateInfo | None = None
         self.settings = config.load_settings()
         self.overlay: StatusOverlay | None = None
@@ -204,8 +381,35 @@ class MacroApp(tk.Tk):
     def _build(self) -> None:
         pad = {"padx": 8, "pady": 4}
 
+        # --- área inferior fixa (controle + log), ancorada embaixo ---
+        logf = ttk.LabelFrame(self, text="Log")
+        logf.pack(side="bottom", fill="x", **pad)
+        self.log_text = tk.Text(logf, height=7, state="disabled", wrap="word")
+        self.log_text.pack(fill="both", expand=True)
+
+        self.update_bar = ttk.Frame(self)
+        self.update_lbl = ttk.Label(self.update_bar, foreground="#7a3cff")
+        self.update_lbl.pack(side="left", padx=4)
+        self.update_btn = ttk.Button(self.update_bar, text="Atualizar agora",
+                                     command=self._apply_update)
+        self.update_btn.pack(side="left", padx=4)
+
+        ctrl = ttk.Frame(self)
+        ctrl.pack(side="bottom", fill="x", **pad)
+        self.toggle_btn = ttk.Button(ctrl, text="▶ Iniciar (OFF)", command=self._toggle)
+        self.toggle_btn.pack(side="left")
+        self.status_lbl = ttk.Label(ctrl, text="parado", foreground="gray")
+        self.status_lbl.pack(side="left", padx=10)
+        ttk.Button(ctrl, text="Verificar atualizações",
+                   command=self._check_update_async).pack(side="right")
+
+        # --- corpo rolável ---
+        body = ScrollableFrame(self)
+        body.pack(side="top", fill="both", expand=True)
+        root = body.interior
+
         # Barra de perfis
-        top = ttk.LabelFrame(self, text="Perfil")
+        top = ttk.LabelFrame(root, text="Perfil")
         top.pack(fill="x", **pad)
         self.profile_var = tk.StringVar()
         self.profile_combo = ttk.Combobox(
@@ -218,91 +422,68 @@ class MacroApp(tk.Tk):
         ttk.Button(top, text="Excluir", command=self._delete_profile).grid(row=0, column=3, padx=2)
         ttk.Button(top, text="Opções", command=self._open_options).grid(row=0, column=4, padx=2)
 
-        # Nome + hotkey
-        meta = ttk.Frame(self)
+        # Nome + hotkey + janela-alvo + jitter
+        meta = ttk.Frame(root)
         meta.pack(fill="x", **pad)
         ttk.Label(meta, text="Nome:").grid(row=0, column=0, sticky="w")
         self.name_var = tk.StringVar()
         ttk.Entry(meta, textvariable=self.name_var, width=24).grid(row=0, column=1, padx=4)
-        ttk.Label(meta, text="Hotkey liga/desliga:").grid(row=0, column=2, sticky="w", padx=(12, 0))
+        ttk.Label(meta, text="Hotkey:").grid(row=0, column=2, sticky="w", padx=(12, 0))
         self.hotkey_var = tk.StringVar()
-        ttk.Entry(meta, textvariable=self.hotkey_var, width=8).grid(row=0, column=3, padx=4)
-        ttk.Button(meta, text="Aplicar hotkey", command=self._apply_hotkey).grid(row=0, column=4)
+        ttk.Entry(meta, textvariable=self.hotkey_var, width=6).grid(row=0, column=3, padx=4)
+        ttk.Button(meta, text="Aplicar", command=self._apply_hotkey).grid(row=0, column=4)
+        ttk.Label(meta, text="Janela-alvo:").grid(row=1, column=0, sticky="w", pady=(4, 0))
+        self.target_window_var = tk.StringVar()
+        ttk.Entry(meta, textvariable=self.target_window_var, width=24).grid(
+            row=1, column=1, padx=4, pady=(4, 0))
+        ttk.Label(meta, text="Jitter %:").grid(row=1, column=2, sticky="w", padx=(12, 0))
+        self.jitter_var = tk.IntVar(value=0)
+        ttk.Spinbox(meta, from_=0, to=90, textvariable=self.jitter_var, width=6).grid(
+            row=1, column=3, padx=4, pady=(4, 0))
 
         # Skills
-        sk = ttk.LabelFrame(self, text="Rotação de Skills")
+        sk = ttk.LabelFrame(root, text="Rotação de Skills")
         sk.pack(fill="both", **pad)
         header = ttk.Frame(sk)
         header.pack(fill="x")
-        for i, txt in enumerate(["On", "Nome", "Tecla", "ms"]):
-            ttk.Label(header, text=txt, width=[4, 16, 11, 9][i],
+        for i, txt in enumerate(["On", "Nome", "Tecla", "ms", "Hold"]):
+            ttk.Label(header, text=txt, width=[4, 14, 10, 9, 5][i],
                       anchor="w").grid(row=0, column=i, padx=2)
         self.skills_container = ttk.Frame(sk)
         self.skills_container.pack(fill="both", expand=True)
         ttk.Button(sk, text="+ Adicionar skill",
                    command=lambda: self._add_skill_row(Skill())).pack(anchor="w", pady=4)
 
-        # Poção
-        pt = ttk.LabelFrame(self, text="Auto-Poção (vida)")
-        pt.pack(fill="x", **pad)
-        self.pot_enabled = tk.BooleanVar()
-        ttk.Checkbutton(pt, text="Ativar", variable=self.pot_enabled).grid(
-            row=0, column=0, sticky="w", padx=4, pady=2)
-        ttk.Label(pt, text="Tecla:").grid(row=0, column=1, sticky="e")
-        self.pot_key = tk.StringVar()
-        ttk.Combobox(pt, textvariable=self.pot_key, values=KEY_VALUES, width=10).grid(
-            row=0, column=2, padx=4)
+        # Combo / sequência
+        cb = ttk.LabelFrame(root, text="Combo / Sequência")
+        cb.pack(fill="x", **pad)
+        opts = ttk.Frame(cb)
+        opts.pack(fill="x")
+        self.combo_enabled = tk.BooleanVar()
+        ttk.Checkbutton(opts, text="Ativar", variable=self.combo_enabled).pack(side="left", padx=4)
+        self.combo_loop = tk.BooleanVar(value=True)
+        ttk.Checkbutton(opts, text="Loop", variable=self.combo_loop).pack(side="left", padx=4)
+        self.combo_container = ttk.Frame(cb)
+        self.combo_container.pack(fill="both", expand=True)
+        ttk.Button(cb, text="+ Adicionar passo",
+                   command=lambda: self._add_combo_row(None)).pack(anchor="w", pady=4)
 
-        ttk.Label(pt, text="Região:").grid(row=1, column=0, sticky="e", padx=4)
-        self.region_var = tk.StringVar(value="(não definida)")
-        ttk.Label(pt, textvariable=self.region_var).grid(row=1, column=1, columnspan=2, sticky="w")
-        ttk.Button(pt, text="Selecionar região", command=self._select_region).grid(
-            row=1, column=3, padx=4)
-        ttk.Button(pt, text="Detectar cor", command=self._detect_color).grid(
-            row=1, column=4, padx=4)
+        # Auto-poções (vida e recurso) — seções reutilizáveis
+        self.potion_section = PotionSection(root, self, "Auto-Poção (vida)", PotionRule())
+        self.resource_section = PotionSection(
+            root, self, "Auto-Poção (recurso/mana)", PotionRule(key="w", color=[40, 80, 200])
+        )
 
-        ttk.Label(pt, text="Disparar abaixo de (%):").grid(row=2, column=0, columnspan=2, sticky="e")
-        self.pot_threshold = tk.IntVar(value=45)
-        ttk.Spinbox(pt, from_=1, to=99, textvariable=self.pot_threshold, width=6).grid(
-            row=2, column=2, padx=4, sticky="w")
-        ttk.Label(pt, text="Cooldown (ms):").grid(row=2, column=3, sticky="e")
-        self.pot_cooldown = tk.IntVar(value=2000)
-        ttk.Spinbox(pt, from_=100, to=60000, increment=100,
-                    textvariable=self.pot_cooldown, width=8).grid(row=2, column=4, padx=4)
+    # --- region picker (compartilhado pelas seções de poção) --------------
 
-        ttk.Label(pt, text="Cor da vida (R,G,B):").grid(row=3, column=0, columnspan=2, sticky="e")
-        self.pot_color = tk.StringVar(value="190,30,30")
-        ttk.Entry(pt, textvariable=self.pot_color, width=12).grid(row=3, column=2, sticky="w", padx=4)
-        ttk.Label(pt, text="Tolerância:").grid(row=3, column=3, sticky="e")
-        self.pot_tol = tk.IntVar(value=70)
-        ttk.Spinbox(pt, from_=5, to=200, textvariable=self.pot_tol, width=6).grid(
-            row=3, column=4, padx=4, sticky="w")
-        ttk.Button(pt, text="Testar leitura", command=self._test_read).grid(
-            row=4, column=0, columnspan=2, sticky="w", padx=4, pady=4)
-
-        # Controle + status
-        ctrl = ttk.Frame(self)
-        ctrl.pack(fill="x", **pad)
-        self.toggle_btn = ttk.Button(ctrl, text="▶ Iniciar (OFF)", command=self._toggle)
-        self.toggle_btn.pack(side="left")
-        self.status_lbl = ttk.Label(ctrl, text="parado", foreground="gray")
-        self.status_lbl.pack(side="left", padx=10)
-        ttk.Button(ctrl, text="Verificar atualizações",
-                   command=self._check_update_async).pack(side="right")
-
-        # Faixa de atualização (oculta até haver versão nova)
-        self.update_bar = ttk.Frame(self)
-        self.update_lbl = ttk.Label(self.update_bar, foreground="#7a3cff")
-        self.update_lbl.pack(side="left", padx=4)
-        self.update_btn = ttk.Button(self.update_bar, text="Atualizar agora",
-                                     command=self._apply_update)
-        self.update_btn.pack(side="left", padx=4)
-
-        # Log
-        logf = ttk.LabelFrame(self, text="Log")
-        logf.pack(fill="both", expand=True, **pad)
-        self.log_text = tk.Text(logf, height=8, state="disabled", wrap="word")
-        self.log_text.pack(fill="both", expand=True)
+    def pick_region(self) -> list[int] | None:
+        self.withdraw()
+        self.update()
+        time.sleep(0.2)
+        sel = RegionSelector(self)
+        self.wait_window(sel)
+        self.deiconify()
+        return sel.result
 
     # --- skills ------------------------------------------------------------
 
@@ -313,6 +494,20 @@ class MacroApp(tk.Tk):
     def _remove_skill_row(self, row: SkillRow) -> None:
         row.destroy()
         self.skill_rows.remove(row)
+
+    def _add_combo_row(self, step) -> None:
+        from .models import ComboStep
+        row = ComboStepRow(self.combo_container, step or ComboStep(), self._remove_combo_row)
+        self.combo_rows.append(row)
+
+    def _remove_combo_row(self, row) -> None:
+        row.destroy()
+        self.combo_rows.remove(row)
+
+    def _clear_combo(self) -> None:
+        for row in list(self.combo_rows):
+            row.destroy()
+        self.combo_rows.clear()
 
     def _clear_skills(self) -> None:
         for row in list(self.skill_rows):
@@ -353,55 +548,37 @@ class MacroApp(tk.Tk):
     def _apply_profile_to_form(self, profile: Profile) -> None:
         self.name_var.set(profile.name)
         self.hotkey_var.set(profile.toggle_hotkey)
+        self.target_window_var.set(profile.target_window)
+        self.jitter_var.set(profile.jitter_pct)
         self._clear_skills()
         for skill in profile.skills:
             self._add_skill_row(skill)
         if not profile.skills:
             self._add_skill_row(Skill())
-        p = profile.potion
-        self.pot_enabled.set(p.enabled)
-        self.pot_key.set(p.key)
-        self.region_var.set(str(p.region) if any(p.region) else "(não definida)")
-        self.pot_threshold.set(int(p.threshold_pct * 100))
-        self.pot_cooldown.set(p.cooldown_ms)
-        self.pot_color.set(",".join(str(c) for c in p.color))
-        self.pot_tol.set(p.tolerance)
+        self._clear_combo()
+        for step in profile.combo.steps:
+            self._add_combo_row(step)
+        self.combo_enabled.set(profile.combo.enabled)
+        self.combo_loop.set(profile.combo.loop)
+        self.potion_section.apply(profile.potion)
+        self.resource_section.apply(profile.resource)
 
     def _form_to_profile(self) -> Profile:
+        from .models import Combo
         return Profile(
             name=self.name_var.get().strip() or "Perfil",
             toggle_hotkey=self.hotkey_var.get().strip().lower() or "f8",
             skills=[r.to_skill() for r in self.skill_rows],
-            potion=self._form_to_potion(),
+            potion=self.potion_section.to_potion(),
+            resource=self.resource_section.to_potion(),
+            combo=Combo(
+                enabled=self.combo_enabled.get(),
+                loop=self.combo_loop.get(),
+                steps=[r.to_step() for r in self.combo_rows],
+            ),
+            target_window=self.target_window_var.get().strip(),
+            jitter_pct=int(self.jitter_var.get() or 0),
         )
-
-    def _form_to_potion(self) -> PotionRule:
-        try:
-            color = [int(c) for c in self.pot_color.get().split(",")][:3]
-            if len(color) != 3:
-                raise ValueError
-        except Exception:
-            color = [190, 30, 30]
-        region = self._parse_region()
-        return PotionRule(
-            enabled=self.pot_enabled.get(),
-            key=self.pot_key.get().strip().lower() or "q",
-            region=region,
-            color=color,
-            tolerance=int(self.pot_tol.get() or 70),
-            threshold_pct=int(self.pot_threshold.get() or 45) / 100,
-            cooldown_ms=int(self.pot_cooldown.get() or 2000),
-        )
-
-    def _parse_region(self) -> list[int]:
-        raw = self.region_var.get().strip("()[] ")
-        try:
-            parts = [int(x.strip()) for x in raw.split(",")]
-            if len(parts) == 4:
-                return parts
-        except Exception:
-            pass
-        return [0, 0, 0, 0]
 
     def _new_profile(self) -> None:
         self.profile_var.set("")
@@ -423,46 +600,6 @@ class MacroApp(tk.Tk):
             self.profile_var.set("")
             self._refresh_profile_list()
             self.log(f"Perfil excluído: {stem}")
-
-    # --- poção: helpers ----------------------------------------------------
-
-    def _select_region(self) -> None:
-        self.withdraw()
-        self.update()
-        time.sleep(0.2)
-        sel = RegionSelector(self)
-        self.wait_window(sel)
-        self.deiconify()
-        if sel.result:
-            self.region_var.set(",".join(str(c) for c in sel.result))
-            self.log(f"Região definida: {sel.result}")
-
-    def _detect_color(self) -> None:
-        region = self._parse_region()
-        x1, y1, x2, y2 = region
-        if x2 <= x1 or y2 <= y1:
-            messagebox.showinfo("Cor", "Defina a região primeiro.")
-            return
-        cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-        try:
-            color = screen.sample_color(cx, cy)
-        except Exception as exc:
-            messagebox.showerror("Erro", f"Falha ao ler cor: {exc}")
-            return
-        self.pot_color.set(",".join(str(c) for c in color))
-        self.log(f"Cor detectada no centro da região: {color}")
-
-    def _test_read(self) -> None:
-        pot = self._form_to_potion()
-        if not (pot.region[2] > pot.region[0] and pot.region[3] > pot.region[1]):
-            messagebox.showinfo("Teste", "Defina a região primeiro.")
-            return
-        try:
-            frac = screen.health_fraction(pot.region, pot.color, pot.tolerance)
-        except Exception as exc:
-            messagebox.showerror("Erro", f"Falha na leitura: {exc}")
-            return
-        self.log(f"Leitura de vida atual: {frac:.0%} (dispara abaixo de {pot.threshold_pct:.0%})")
 
     # --- hotkey + controle -------------------------------------------------
 
@@ -492,7 +629,14 @@ class MacroApp(tk.Tk):
             self.toggle_btn.config(text="▶ Iniciar (OFF)")
             self.status_lbl.config(text="parado", foreground="gray")
         if self.overlay is not None:
-            self.overlay.update_state(running, self.engine.last_health)
+            stats = {
+                "casts": self.engine.casts,
+                "potions": self.engine.potions_used,
+                "uptime": self.engine.uptime(),
+            }
+            self.overlay.update_state(
+                running, self.engine.last_health, self.engine.last_resource, stats
+            )
         self.after(400, self._refresh_status)
 
     # --- opções + pânico ---------------------------------------------------

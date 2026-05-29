@@ -7,12 +7,17 @@ from dataclasses import asdict, dataclass, field
 
 @dataclass
 class Skill:
-    """Uma habilidade que dispara uma tecla em intervalo fixo."""
+    """Uma habilidade que dispara uma tecla em intervalo fixo.
+
+    Se `hold=True`, a tecla é mantida pressionada enquanto o macro estiver ativo
+    (ataque básico/skill canalizada), em vez de ser pressionada em intervalos.
+    """
 
     name: str = "Skill"
     key: str = "1"
     interval_ms: int = 1000
     enabled: bool = True
+    hold: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -24,6 +29,49 @@ class Skill:
             key=str(data.get("key", "1")),
             interval_ms=int(data.get("interval_ms", 1000)),
             enabled=bool(data.get("enabled", True)),
+            hold=bool(data.get("hold", False)),
+        )
+
+
+@dataclass
+class ComboStep:
+    """Um passo de um combo: pressiona `key` e espera `delay_ms` antes do próximo."""
+
+    key: str = "1"
+    delay_ms: int = 300
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ComboStep":
+        return cls(
+            key=str(data.get("key", "1")),
+            delay_ms=int(data.get("delay_ms", 300)),
+        )
+
+
+@dataclass
+class Combo:
+    """Sequência ordenada de passos (rotação de build)."""
+
+    enabled: bool = False
+    loop: bool = True
+    steps: list[ComboStep] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "enabled": self.enabled,
+            "loop": self.loop,
+            "steps": [s.to_dict() for s in self.steps],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Combo":
+        return cls(
+            enabled=bool(data.get("enabled", False)),
+            loop=bool(data.get("loop", True)),
+            steps=[ComboStep.from_dict(s) for s in data.get("steps", [])],
         )
 
 
@@ -94,6 +142,10 @@ class Profile:
     toggle_hotkey: str = "f8"
     skills: list[Skill] = field(default_factory=list)
     potion: PotionRule = field(default_factory=PotionRule)
+    resource: PotionRule = field(default_factory=lambda: PotionRule(key="w", color=[40, 80, 200]))
+    combo: Combo = field(default_factory=Combo)
+    target_window: str = ""
+    jitter_pct: int = 0
 
     def to_dict(self) -> dict:
         return {
@@ -101,6 +153,10 @@ class Profile:
             "toggle_hotkey": self.toggle_hotkey,
             "skills": [s.to_dict() for s in self.skills],
             "potion": self.potion.to_dict(),
+            "resource": self.resource.to_dict(),
+            "combo": self.combo.to_dict(),
+            "target_window": self.target_window,
+            "jitter_pct": self.jitter_pct,
         }
 
     @classmethod
@@ -110,4 +166,10 @@ class Profile:
             toggle_hotkey=str(data.get("toggle_hotkey", "f8")),
             skills=[Skill.from_dict(s) for s in data.get("skills", [])],
             potion=PotionRule.from_dict(data.get("potion", {})),
+            resource=PotionRule.from_dict(
+                data.get("resource", {"key": "w", "color": [40, 80, 200]})
+            ),
+            combo=Combo.from_dict(data.get("combo", {})),
+            target_window=str(data.get("target_window", "")),
+            jitter_pct=int(data.get("jitter_pct", 0)),
         )
