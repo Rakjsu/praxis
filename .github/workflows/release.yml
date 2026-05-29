@@ -42,8 +42,17 @@ jobs:
       - name: Compilar instalador
         run: iscc /DMyAppVersion=${{ steps.ver.outputs.version }} installer/praxis.iss
 
+      - name: Gerar SHA256 do instalador
+        shell: pwsh
+        run: |
+          $exe = "installer/Output/Praxis-Setup-${{ steps.ver.outputs.version }}.exe"
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  $(Split-Path $exe -Leaf)" | Out-File -FilePath "$exe.sha256" -Encoding ascii -NoNewline
+
       - name: Publicar Release
         uses: softprops/action-gh-release@v2
         with:
-          files: installer/Output/Praxis-Setup-${{ steps.ver.outputs.version }}.exe
+          files: |
+            installer/Output/Praxis-Setup-${{ steps.ver.outputs.version }}.exe
+            installer/Output/Praxis-Setup-${{ steps.ver.outputs.version }}.exe.sha256
           generate_release_notes: true

@@ -28,7 +28,7 @@ def health_fraction(region: list[int], color: list[int], tolerance: int) -> floa
     if x2 <= x1 or y2 <= y1:
         return 1.0  # região inválida => assume vida cheia (não dispara poção)
 
-    img = ImageGrab.grab(bbox=(x1, y1, x2, y2)).convert("RGB")
+    img = ImageGrab.grab(bbox=(x1, y1, x2, y2), all_screens=True).convert("RGB")
     w, h = img.size
     px = img.load()
 
@@ -50,5 +50,5 @@ def health_fraction(region: list[int], color: list[int], tolerance: int) -> floa
 
 def sample_color(x: int, y: int) -> tuple[int, int, int]:
     """Cor RGB de um único pixel — útil para calibrar a cor-alvo da vida."""
-    img = ImageGrab.grab(bbox=(x, y, x + 1, y + 1)).convert("RGB")
+    img = ImageGrab.grab(bbox=(x, y, x + 1, y + 1), all_screens=True).convert("RGB")
     return img.getpixel((0, 0))

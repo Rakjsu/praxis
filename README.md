@@ -17,7 +17,11 @@ via GitHub.
 - **Perfis** — salve/carregue configurações por jogo (JSON). Vem com um perfil
   de exemplo para Diablo.
 - **Hotkey global** — liga/desliga o macro mesmo com o jogo em foco (padrão `F8`).
-- **Auto-update** — verifica novas versões no GitHub e instala com um clique.
+- **Tecla de pânico** — para tudo imediatamente (padrão `F9`).
+- **Overlay de status** — janelinha sempre-no-topo com ON/OFF e a vida lida.
+- **Multi-monitor** — a captura de região funciona em qualquer monitor.
+- **Auto-update** — verifica novas versões no GitHub, **valida o SHA256** e
+  instala com um clique.
 
 ## Instalação
 
@@ -46,9 +50,21 @@ python run.py
 3. **Hotkey:** padrão `F8` liga/desliga; troque no campo e clique em
    **Aplicar hotkey**.
 4. **Salvar:** grava o perfil. Você pode ter vários (um por jogo).
+5. **Opções:** botão **Opções** → iniciar minimizado, overlay de status, log em
+   arquivo e **tecla de pânico** (padrão `F9`, para tudo na hora).
 
 Perfis ficam em `<repo>/profiles` no modo desenvolvimento e em
-`%APPDATA%\Praxis\profiles` quando instalado.
+`%APPDATA%\Praxis\profiles` quando instalado (junto com `settings.json`).
+
+## Testes & qualidade
+
+```bash
+pip install -r requirements-dev.txt
+ruff check .
+pytest -q
+```
+
+O workflow `.github/workflows/ci.yml` roda `ruff` + `pytest` a cada push/PR.
 
 ## Build a partir do código
 
@@ -101,7 +117,8 @@ python tools/bump_version.py minor --git --push
 ## Estrutura
 
 ```
-praxis/        # pacote do app (gui, engine, sender, screen, config, updater, ...)
+praxis/        # pacote do app (gui, engine, sender, screen, config, updater, overlay, ...)
+tests/         # testes pytest (models, updater, config)
 profiles/      # perfis JSON (inclui diablo.json)
 tools/         # make_icon.py, build.py, build_installer.py, bump_version.py
 installer/     # praxis.iss (Inno Setup)

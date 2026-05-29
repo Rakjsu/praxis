@@ -24,6 +24,7 @@ class MacroEngine:
         self._stop = threading.Event()
         self._profile: Profile | None = None
         self._lock = threading.Lock()
+        self.last_health: float | None = None  # última fração de vida lida
 
     # --- estado ------------------------------------------------------------
 
@@ -51,6 +52,7 @@ class MacroEngine:
             return
         self._stop.set()
         self._thread.join(timeout=1.0)
+        self.last_health = None
         self._log("[OFF] Macro desativado")
 
     def toggle(self, profile: Profile) -> bool:
@@ -95,6 +97,7 @@ class MacroEngine:
                 except Exception as exc:  # captura de tela pode falhar pontualmente
                     self._log(f"[!] leitura de tela falhou: {exc}")
                     frac = 1.0
+                self.last_health = frac
                 if frac < pot.threshold_pct:
                     sender.tap(pot.key)
                     self._log(f"poção! vida~{frac:.0%} -> {pot.key}")

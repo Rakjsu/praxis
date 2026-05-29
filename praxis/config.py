@@ -16,7 +16,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from .models import Profile
+from .models import Profile, Settings
 
 
 def _profiles_dir() -> Path:
@@ -83,3 +83,26 @@ def save_profile(profile: Profile) -> Path:
 def delete_profile(stem: str) -> None:
     path = PROFILES_DIR / f"{stem}.json"
     path.unlink(missing_ok=True)
+
+
+def settings_path() -> Path:
+    return PROFILES_DIR.parent / "settings.json"
+
+
+def load_settings() -> Settings:
+    path = settings_path()
+    if not path.exists():
+        return Settings()
+    try:
+        with path.open("r", encoding="utf-8") as fh:
+            return Settings.from_dict(json.load(fh))
+    except Exception:
+        return Settings()
+
+
+def save_settings(settings: Settings) -> Path:
+    path = settings_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as fh:
+        json.dump(settings.to_dict(), fh, indent=2, ensure_ascii=False)
+    return path

@@ -11,20 +11,45 @@ from tkinter import messagebox, ttk
 from . import __app_name__, __version__, config, screen, updater
 from .engine import MacroEngine
 from .hotkeys import HotkeyManager
-from .models import PotionRule, Profile, Skill
+from .models import PotionRule, Profile, Settings, Skill
+from .overlay import StatusOverlay
 from .sender import available_keys
 
 KEY_VALUES = available_keys()
 
 
+def _virtual_desktop() -> tuple[int, int, int, int]:
+    """Retorna (x, y, largura, altura) do desktop virtual (todos os monitores)."""
+    try:
+        import ctypes
+
+        g = ctypes.windll.user32.GetSystemMetrics
+        return g(76), g(77), g(78), g(79)  # X/Y/CX/CY VIRTUALSCREEN
+    except Exception:
+        return 0, 0, 0, 0
+
+
 class RegionSelector(tk.Toplevel):
-    """Overlay de tela cheia para o usuário arrastar e selecionar uma região."""
+    """Overlay que cobre todos os monitores para selecionar uma região.
+
+    O retângulo é desenhado em coordenadas do canvas (relativas ao canto do
+    desktop virtual), mas o resultado é salvo em coordenadas absolutas de tela.
+    """
 
     def __init__(self, master: tk.Misc) -> None:
         super().__init__(master)
         self.result: list[int] | None = None
-        self.attributes("-fullscreen", True)
+
+        vx, vy, vw, vh = _virtual_desktop()
+        self._offset = (vx, vy)
+        if vw > 0 and vh > 0:
+            self.overrideredirect(True)
+            self.geometry(f"{vw}x{vh}+{vx}+{vy}")
+        else:
+            self.attributes("-fullscreen", True)
+
         self.attributes("-alpha", 0.3)
+        self.attributes("-topmost", True)
         self.configure(bg="black", cursor="cross")
         self.canvas = tk.Canvas(self, bg="black", highlightthickness=0)
         self.canvas.pack(fill="both", expand=True)
@@ -34,25 +59,27 @@ class RegionSelector(tk.Toplevel):
         self.canvas.bind("<B1-Motion>", self._move)
         self.canvas.bind("<ButtonRelease-1>", self._up)
         self.bind("<Escape>", lambda _e: self._cancel())
-        self.label = self.canvas.create_text(
-            self.winfo_screenwidth() // 2, 30,
+        self.canvas.create_text(
+            max(1, vw) // 2, 30,
             text="Arraste sobre a barra de vida — ESC para cancelar",
             fill="white", font=("Segoe UI", 14),
         )
+
+    def _to_canvas(self, x_root: int, y_root: int) -> tuple[int, int]:
+        return x_root - self._offset[0], y_root - self._offset[1]
 
     def _down(self, e: tk.Event) -> None:
         self._start = (e.x_root, e.y_root)
         if self._rect:
             self.canvas.delete(self._rect)
-        self._rect = self.canvas.create_rectangle(
-            e.x, e.y, e.x, e.y, outline="red", width=2
-        )
+        cx, cy = self._to_canvas(e.x_root, e.y_root)
+        self._rect = self.canvas.create_rectangle(cx, cy, cx, cy, outline="red", width=2)
 
     def _move(self, e: tk.Event) -> None:
         if self._start and self._rect:
-            x0 = self._start[0]
-            y0 = self._start[1]
-            self.canvas.coords(self._rect, x0, y0, e.x_root, e.y_root)
+            cx0, cy0 = self._to_canvas(*self._start)
+            cx1, cy1 = self._to_canvas(e.x_root, e.y_root)
+            self.canvas.coords(self._rect, cx0, cy0, cx1, cy1)
 
     def _up(self, e: tk.Event) -> None:
         if not self._start:
@@ -102,6 +129,52 @@ class SkillRow:
         self.frame.destroy()
 
 
+class OptionsDialog(tk.Toplevel):
+    """Janela de opções globais (Settings)."""
+
+    def __init__(self, app: "MacroApp") -> None:
+        super().__init__(app)
+        self.app = app
+        self.title("Opções")
+        self.resizable(False, False)
+        self.transient(app)
+        self.grab_set()
+
+        s = app.settings
+        self.start_minimized = tk.BooleanVar(value=s.start_minimized)
+        self.overlay_enabled = tk.BooleanVar(value=s.overlay_enabled)
+        self.log_to_file = tk.BooleanVar(value=s.log_to_file)
+        self.panic_key = tk.StringVar(value=s.panic_key)
+
+        pad = {"padx": 10, "pady": 4}
+        ttk.Checkbutton(self, text="Iniciar minimizado",
+                        variable=self.start_minimized).grid(row=0, column=0, columnspan=2, sticky="w", **pad)
+        ttk.Checkbutton(self, text="Mostrar overlay de status",
+                        variable=self.overlay_enabled).grid(row=1, column=0, columnspan=2, sticky="w", **pad)
+        ttk.Checkbutton(self, text="Salvar log em arquivo (praxis.log)",
+                        variable=self.log_to_file).grid(row=2, column=0, columnspan=2, sticky="w", **pad)
+        ttk.Label(self, text="Tecla de pânico (para tudo):").grid(row=3, column=0, sticky="w", **pad)
+        ttk.Combobox(self, textvariable=self.panic_key, values=KEY_VALUES,
+                     width=10).grid(row=3, column=1, sticky="w", **pad)
+
+        btns = ttk.Frame(self)
+        btns.grid(row=4, column=0, columnspan=2, pady=8)
+        ttk.Button(btns, text="Salvar", command=self._save).pack(side="left", padx=4)
+        ttk.Button(btns, text="Cancelar", command=self.destroy).pack(side="left", padx=4)
+
+    def _save(self) -> None:
+        self.app.settings = Settings(
+            start_minimized=self.start_minimized.get(),
+            overlay_enabled=self.overlay_enabled.get(),
+            panic_key=self.panic_key.get().strip().lower() or "f9",
+            log_to_file=self.log_to_file.get(),
+        )
+        config.save_settings(self.app.settings)
+        self.app._apply_settings()
+        self.app.log("Opções salvas.")
+        self.destroy()
+
+
 class MacroApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
@@ -111,14 +184,20 @@ class MacroApp(tk.Tk):
 
         self.engine = MacroEngine(log=self.log)
         self.hotkeys = HotkeyManager()
+        self.panic_hotkeys = HotkeyManager()
         self.skill_rows: list[SkillRow] = []
         self._pending_update: updater.UpdateInfo | None = None
+        self.settings = config.load_settings()
+        self.overlay: StatusOverlay | None = None
 
         self._build()
         self._load_initial_profile()
+        self._apply_settings()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.after(400, self._refresh_status)
         self.after(1500, self._check_update_async)
+        if self.settings.start_minimized:
+            self.iconify()
 
     # --- construção da UI --------------------------------------------------
 
@@ -137,6 +216,7 @@ class MacroApp(tk.Tk):
         ttk.Button(top, text="Novo", command=self._new_profile).grid(row=0, column=1, padx=2)
         ttk.Button(top, text="Salvar", command=self._save_profile).grid(row=0, column=2, padx=2)
         ttk.Button(top, text="Excluir", command=self._delete_profile).grid(row=0, column=3, padx=2)
+        ttk.Button(top, text="Opções", command=self._open_options).grid(row=0, column=4, padx=2)
 
         # Nome + hotkey
         meta = ttk.Frame(self)
@@ -404,13 +484,49 @@ class MacroApp(tk.Tk):
         self._refresh_status()
 
     def _refresh_status(self) -> None:
-        if self.engine.running:
+        running = self.engine.running
+        if running:
             self.toggle_btn.config(text="■ Parar (ON)")
             self.status_lbl.config(text="RODANDO", foreground="green")
         else:
             self.toggle_btn.config(text="▶ Iniciar (OFF)")
             self.status_lbl.config(text="parado", foreground="gray")
+        if self.overlay is not None:
+            self.overlay.update_state(running, self.engine.last_health)
         self.after(400, self._refresh_status)
+
+    # --- opções + pânico ---------------------------------------------------
+
+    def _apply_settings(self) -> None:
+        """Aplica as configurações: overlay e tecla de pânico."""
+        # Overlay
+        if self.settings.overlay_enabled and self.overlay is None:
+            self.overlay = StatusOverlay(self)
+        elif not self.settings.overlay_enabled and self.overlay is not None:
+            self.overlay.destroy()
+            self.overlay = None
+
+        # Tecla de pânico (precisa diferir da hotkey de liga/desliga)
+        panic = self.settings.panic_key.strip().lower()
+        toggle = self.hotkey_var.get().strip().lower() if hasattr(self, "hotkey_var") else ""
+        if panic and panic != toggle and self.panic_hotkeys.available:
+            ok = self.panic_hotkeys.register(panic, self._panic_fired)
+            self.log(f"Tecla de pânico '{panic}' {'registrada' if ok else 'FALHOU'}")
+        else:
+            self.panic_hotkeys.unregister()
+            if panic and panic == toggle:
+                self.log("[!] tecla de pânico igual à de liga/desliga — ignorada")
+
+    def _panic_fired(self) -> None:
+        self.after(0, self._panic)
+
+    def _panic(self) -> None:
+        self.engine.stop()
+        self._refresh_status()
+        self.log("[PÂNICO] tudo parado")
+
+    def _open_options(self) -> None:
+        OptionsDialog(self)
 
     # --- auto-update -------------------------------------------------------
 
@@ -443,25 +559,41 @@ class MacroApp(tk.Tk):
         ):
             return
         self.log("Baixando atualização...")
-        if updater.download_and_run(info.download_url):
+        if updater.download_and_run(info.download_url, info.sha256_url):
             self._on_close()
         else:
-            messagebox.showerror("Atualização", "Falha ao baixar. Abrindo a página do release.")
+            messagebox.showerror(
+                "Atualização",
+                "Falha ao baixar ou verificar a integridade. Abrindo a página do release.",
+            )
             webbrowser.open(info.release_url)
 
     # --- log + ciclo de vida ----------------------------------------------
 
     def log(self, msg: str) -> None:
+        line = time.strftime("%H:%M:%S ") + msg
+
         def _append() -> None:
             self.log_text.config(state="normal")
-            self.log_text.insert("end", time.strftime("%H:%M:%S ") + msg + "\n")
+            self.log_text.insert("end", line + "\n")
             self.log_text.see("end")
             self.log_text.config(state="disabled")
         self.after(0, _append)
 
+        if getattr(self, "settings", None) and self.settings.log_to_file:
+            try:
+                path = config.PROFILES_DIR.parent / "praxis.log"
+                with path.open("a", encoding="utf-8") as fh:
+                    fh.write(time.strftime("%Y-%m-%d ") + line + "\n")
+            except Exception:
+                pass
+
     def _on_close(self) -> None:
         self.engine.stop()
         self.hotkeys.unregister()
+        self.panic_hotkeys.unregister()
+        if self.overlay is not None:
+            self.overlay.destroy()
         self.destroy()
 
 

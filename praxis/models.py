@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 
 
 @dataclass
@@ -62,6 +62,28 @@ class PotionRule:
     def is_configured(self) -> bool:
         x1, y1, x2, y2 = self.region
         return self.enabled and x2 > x1 and y2 > y1
+
+
+@dataclass
+class Settings:
+    """Configurações globais do app (não pertencem a um perfil específico)."""
+
+    start_minimized: bool = False
+    overlay_enabled: bool = True
+    panic_key: str = "f9"
+    log_to_file: bool = False
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Settings":
+        return cls(
+            start_minimized=bool(data.get("start_minimized", False)),
+            overlay_enabled=bool(data.get("overlay_enabled", True)),
+            panic_key=str(data.get("panic_key", "f9")),
+            log_to_file=bool(data.get("log_to_file", False)),
+        )
 
 
 @dataclass

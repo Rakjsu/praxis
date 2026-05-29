@@ -21,7 +21,6 @@ import argparse
 import datetime
 import re
 import subprocess
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -131,7 +130,7 @@ def main() -> int:
 
     update_init(new_s)
     update_changelog(old_s, new_s)
-    print(f"Atualizado: praxis/__init__.py e CHANGELOG.md")
+    print("Atualizado: praxis/__init__.py e CHANGELOG.md")
 
     if args.git or args.push:
         git("add", "praxis/__init__.py", "CHANGELOG.md")

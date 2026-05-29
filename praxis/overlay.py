@@ -1,0 +1,60 @@
+"""Overlay de status — janelinha sempre-no-topo mostrando ON/OFF e a vida lida."""
+
+from __future__ import annotations
+
+import tkinter as tk
+
+
+class StatusOverlay(tk.Toplevel):
+    """Pequena janela sem bordas, sempre no topo e arrastável.
+
+    Mostra o estado do macro (ON/OFF) e a última fração de vida lida pela
+    auto-poção. É atualizada externamente via `update_state`.
+    """
+
+    def __init__(self, master: tk.Misc) -> None:
+        super().__init__(master)
+        self.overrideredirect(True)
+        self.attributes("-topmost", True)
+        try:
+            self.attributes("-alpha", 0.85)
+        except tk.TclError:
+            pass
+        self.configure(bg="#11111b")
+
+        self._status = tk.StringVar(value="Praxis: OFF")
+        self._health = tk.StringVar(value="Vida: —")
+
+        frame = tk.Frame(self, bg="#11111b", padx=10, pady=6)
+        frame.pack()
+        self._status_lbl = tk.Label(
+            frame, textvariable=self._status, fg="#9aa0b5", bg="#11111b",
+            font=("Segoe UI", 10, "bold"),
+        )
+        self._status_lbl.pack(anchor="w")
+        tk.Label(
+            frame, textvariable=self._health, fg="#cdd6f4", bg="#11111b",
+            font=("Segoe UI", 10),
+        ).pack(anchor="w")
+
+        # Arrastar a janela.
+        self._drag = (0, 0)
+        for w in (self, frame, self._status_lbl):
+            w.bind("<ButtonPress-1>", self._start_drag)
+            w.bind("<B1-Motion>", self._on_drag)
+
+        self.geometry("+40+40")
+
+    def _start_drag(self, e: tk.Event) -> None:
+        self._drag = (e.x_root - self.winfo_x(), e.y_root - self.winfo_y())
+
+    def _on_drag(self, e: tk.Event) -> None:
+        self.geometry(f"+{e.x_root - self._drag[0]}+{e.y_root - self._drag[1]}")
+
+    def update_state(self, running: bool, health: float | None) -> None:
+        self._status.set(f"Praxis: {'ON' if running else 'OFF'}")
+        self._status_lbl.config(fg="#a6e3a1" if running else "#9aa0b5")
+        if health is None:
+            self._health.set("Vida: —")
+        else:
+            self._health.set(f"Vida: {health:.0%}")
