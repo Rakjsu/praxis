@@ -7,8 +7,15 @@ e o projeto adota [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 ## [Não lançado]
 
 ## [0.3.0] - 2026-05-28
+### Adicionado
+- **Combo/sequência** ordenada com delay por passo e loop (build rotation).
+- **Skill em "hold"**: mantém tecla/botão pressionado (ataque básico/canalizado).
+- **Auto-poção de recurso/mana**: 2º watcher de cor além da vida.
+- **Jitter de tempo** por perfil nos intervalos de skill e passos do combo.
+- **Foreground-gating**: só envia input quando a janela-alvo está em foco.
+- **Painel de stats** (casts, poções, uptime) no overlay.
 ### Alterado
-- _(sem notas)_
+- UI com corpo rolável; seção de poção reutilizável para vida e recurso.
 
 ## [0.2.0] - 2026-05-28
 ### Adicionado
