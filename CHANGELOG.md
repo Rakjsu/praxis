@@ -7,8 +7,13 @@ e o projeto adota [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 ## [Não lançado]
 
 ## [0.1.1] - 2026-05-28
+### Adicionado
+- Sistema de versionamento SemVer com fonte única (`praxis/__init__.py`):
+  `tools/bump_version.py` (bump major/minor/patch/X.Y.Z + CHANGELOG + git tag).
+- `tools/build_installer.py`: compila o instalador passando a versão automaticamente.
 ### Alterado
-- _(sem notas)_
+- Instalador agora exige elevação (UAC) e instala em `C:\Program Files\Praxis`
+  para todos os usuários (`PrivilegesRequired=admin`).
 
 ## [0.1.0] - 2026-05-28
 ### Adicionado
