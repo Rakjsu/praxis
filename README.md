@@ -62,8 +62,29 @@ Para o instalador, instale o [Inno Setup](https://jrsoftware.org/isinfo.php)
 (`winget install -e --id JRSoftware.InnoSetup`) e compile:
 
 ```bash
-iscc installer/praxis.iss     # gera installer/Output/Praxis-Setup-x.y.z.exe
+python tools/build_installer.py   # lê a versão da fonte única e chama o ISCC
 ```
+
+O instalador exige elevação (UAC) e instala em **`C:\Program Files\Praxis`**
+(para todos os usuários). Os perfis ficam em `%APPDATA%\Praxis\profiles`.
+
+## Versionamento
+
+O projeto segue [SemVer](https://semver.org/lang/pt-BR/). A versão tem **fonte
+única** em `praxis/__init__.py` (`__version__`) e é consumida pelo app, pelo
+instalador e pelos releases. Para subir a versão use o script de bump:
+
+```bash
+python tools/bump_version.py patch        # 0.1.0 -> 0.1.1
+python tools/bump_version.py minor        # 0.1.0 -> 0.2.0
+python tools/bump_version.py major        # 0.1.0 -> 1.0.0
+python tools/bump_version.py 1.4.2        # versão explícita
+python tools/bump_version.py patch --dry-run     # só simula
+```
+
+Ele atualiza `__version__` e o `CHANGELOG.md` (move "Não lançado" para a nova
+versão). Com `--git` cria commit + tag; com `--push` também envia (o que dispara
+o CI a publicar o release).
 
 ## Releases & auto-update
 
@@ -71,11 +92,10 @@ Cada tag `vX.Y.Z` enviada ao GitHub dispara o workflow de CI
 (`.github/workflows/release.yml`), que builda o instalador e o publica como
 Release. O app verifica essa API na inicialização e oferece a atualização.
 
-Para lançar manualmente:
+Fluxo recomendado de lançamento:
 
 ```bash
-gh release create v0.1.0 installer/Output/Praxis-Setup-0.1.0.exe \
-  --title "Praxis 0.1.0" --notes-file CHANGELOG.md
+python tools/bump_version.py minor --git --push
 ```
 
 ## Estrutura
@@ -83,7 +103,7 @@ gh release create v0.1.0 installer/Output/Praxis-Setup-0.1.0.exe \
 ```
 praxis/        # pacote do app (gui, engine, sender, screen, config, updater, ...)
 profiles/      # perfis JSON (inclui diablo.json)
-tools/         # make_icon.py, build.py
+tools/         # make_icon.py, build.py, build_installer.py, bump_version.py
 installer/     # praxis.iss (Inno Setup)
 assets/        # icon.ico
 run.py         # ponto de entrada

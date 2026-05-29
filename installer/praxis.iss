@@ -20,6 +20,9 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}/issues
 AppUpdatesURL={#MyAppURL}/releases
+; Exige elevação (UAC) e instala em "Arquivos de Programas" para todos os usuários.
+; Com admin + modo 64-bit, {autopf} resolve para C:\Program Files (não o x86 por usuário).
+PrivilegesRequired=admin
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
