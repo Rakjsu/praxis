@@ -33,6 +33,7 @@ def main() -> int:
         "--name", "Praxis",
         "--icon", str(ICON),
         "--add-data", add_data,
+        "--hidden-import", "pystray._win32",
         str(ROOT / "run.py"),
     ]
     print("Executando:", " ".join(cmd))

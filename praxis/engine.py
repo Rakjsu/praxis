@@ -103,22 +103,53 @@ class MacroEngine:
     def _run_potion(
         self, rule: PotionRule, label: str, now_t: float, due: float
     ) -> tuple[float | None, float]:
-        """Lê a barra e usa a poção se preciso. Retorna (fração_lida, próximo_due)."""
-        if not rule.is_configured():
-            return (None, due)
-        if now_t < due:
+        """Lê a barra (se a região for válida) e usa a poção se habilitada.
+
+        A leitura acontece mesmo com a auto-poção desligada — assim as condições
+        de cast (vida/recurso) funcionam só com a região definida. O uso da poção
+        respeita `enabled` e o cooldown (`due`).
+        """
+        if not rule.has_region():
             return (None, due)
         try:
             frac = screen.health_fraction(rule.region, rule.color, rule.tolerance)
         except Exception as exc:
             self._log(f"[!] leitura de tela ({label}) falhou: {exc}")
-            frac = 1.0
-        if frac < rule.threshold_pct:
+            return (None, due)
+        if rule.enabled and now_t >= due and frac < rule.threshold_pct:
             sender.tap(rule.key)
             self.potions_used += 1
             self._log(f"poção ({label})! {frac:.0%} -> {rule.key}")
             return (frac, now_t + max(0.2, rule.cooldown_ms / 1000))
         return (frac, due)
+
+    def _condition_ok(self, skill) -> bool:
+        """Avalia o cast condicional. Sem leitura disponível, considera satisfeito."""
+        cond = skill.condition
+        if cond == "none":
+            return True
+        pct = skill.condition_pct / 100
+        if cond.startswith("health"):
+            val = self.last_health
+        else:
+            val = self.last_resource
+        if val is None:
+            return True
+        if cond.endswith("below"):
+            return val < pct
+        return val > pct
+
+    def _skill_ready(self, skill) -> bool:
+        """True se a skill não tem checagem de cooldown ou se o ícone está pronto."""
+        if not skill.has_cooldown_check():
+            return True
+        try:
+            frac = screen.health_fraction(
+                skill.cooldown_region, skill.ready_color, skill.ready_tolerance
+            )
+        except Exception:
+            return True  # em falha de leitura, não trava a skill
+        return frac >= skill.ready_threshold
 
     # --- loop --------------------------------------------------------------
 
@@ -151,17 +182,31 @@ class MacroEngine:
             self._press_held(profile)
             t = now()
 
-            # Skills por intervalo (as em hold não entram aqui)
+            # Auto-poções primeiro: atualiza last_health/last_resource para as
+            # condições de cast usarem leituras frescas.
+            frac_h, next_potion = self._run_potion(profile.potion, "vida", t, next_potion)
+            if frac_h is not None:
+                self.last_health = frac_h
+            frac_r, next_resource = self._run_potion(profile.resource, "recurso", t, next_resource)
+            if frac_r is not None:
+                self.last_resource = frac_r
+
+            # Skills por intervalo (as em hold não entram aqui).
+            # Gates: intervalo + condição (vida/recurso) + cooldown do ícone.
+            # Se due mas bloqueado, NÃO avança o due (re-tenta no próximo ciclo).
             for idx, skill in enumerate(profile.skills):
                 if not skill.enabled or skill.hold:
                     continue
-                if t >= next_skill.get(idx, 0.0):
-                    if sender.tap(skill.key):
-                        self.casts += 1
-                        self._log(f"skill '{skill.name}' -> {skill.key}")
-                    else:
-                        self._log(f"[!] tecla desconhecida: {skill.key}")
-                    next_skill[idx] = t + self._jitter(skill.interval_ms, profile.jitter_pct)
+                if t < next_skill.get(idx, 0.0):
+                    continue
+                if not self._condition_ok(skill) or not self._skill_ready(skill):
+                    continue
+                if sender.tap(skill.key):
+                    self.casts += 1
+                    self._log(f"skill '{skill.name}' -> {skill.key}")
+                else:
+                    self._log(f"[!] tecla desconhecida: {skill.key}")
+                next_skill[idx] = t + self._jitter(skill.interval_ms, profile.jitter_pct)
 
             # Combo / sequência ordenada
             combo = profile.combo
@@ -175,14 +220,6 @@ class MacroEngine:
                         self._log(f"combo[{combo_idx}] -> {step.key}")
                     next_combo = t + self._jitter(step.delay_ms, profile.jitter_pct)
                     combo_idx += 1
-
-            # Auto-poções (vida e recurso)
-            frac_h, next_potion = self._run_potion(profile.potion, "vida", t, next_potion)
-            if frac_h is not None:
-                self.last_health = frac_h
-            frac_r, next_resource = self._run_potion(profile.resource, "recurso", t, next_resource)
-            if frac_r is not None:
-                self.last_resource = frac_r
 
             time.sleep(0.02)
 

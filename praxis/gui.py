@@ -97,27 +97,42 @@ class RegionSelector(tk.Toplevel):
 class SkillRow:
     """Uma linha editável de skill dentro da tabela."""
 
-    def __init__(self, parent: tk.Misc, skill: Skill, on_remove) -> None:
+    def __init__(self, parent: tk.Misc, skill: Skill, on_remove, app: "MacroApp") -> None:
+        self.app = app
         self.enabled = tk.BooleanVar(value=skill.enabled)
         self.name = tk.StringVar(value=skill.name)
         self.key = tk.StringVar(value=skill.key)
         self.interval = tk.IntVar(value=skill.interval_ms)
         self.hold = tk.BooleanVar(value=skill.hold)
+        # Campos avançados guardados como espelho do modelo (editados no diálogo).
+        self.adv = {
+            "cooldown_region": list(skill.cooldown_region),
+            "ready_color": list(skill.ready_color),
+            "ready_tolerance": skill.ready_tolerance,
+            "ready_threshold": skill.ready_threshold,
+            "condition": skill.condition,
+            "condition_pct": skill.condition_pct,
+        }
 
         self.frame = ttk.Frame(parent)
         ttk.Checkbutton(self.frame, variable=self.enabled).grid(row=0, column=0, padx=2)
-        ttk.Entry(self.frame, textvariable=self.name, width=14).grid(row=0, column=1, padx=2)
+        ttk.Entry(self.frame, textvariable=self.name, width=13).grid(row=0, column=1, padx=2)
         ttk.Combobox(
             self.frame, textvariable=self.key, values=KEY_VALUES, width=9
         ).grid(row=0, column=2, padx=2)
         ttk.Spinbox(
             self.frame, from_=50, to=600000, increment=50,
-            textvariable=self.interval, width=8,
+            textvariable=self.interval, width=7,
         ).grid(row=0, column=3, padx=2)
         ttk.Checkbutton(self.frame, variable=self.hold).grid(row=0, column=4, padx=2)
+        ttk.Button(self.frame, text="⚙", width=3,
+                   command=self._open_advanced).grid(row=0, column=5, padx=1)
         ttk.Button(self.frame, text="X", width=3,
-                   command=lambda: on_remove(self)).grid(row=0, column=5, padx=2)
+                   command=lambda: on_remove(self)).grid(row=0, column=6, padx=1)
         self.frame.pack(fill="x", pady=1)
+
+    def _open_advanced(self) -> None:
+        SkillAdvancedDialog(self.app, self)
 
     def to_skill(self) -> Skill:
         return Skill(
@@ -126,6 +141,12 @@ class SkillRow:
             interval_ms=max(50, int(self.interval.get() or 50)),
             enabled=self.enabled.get(),
             hold=self.hold.get(),
+            cooldown_region=list(self.adv["cooldown_region"]),
+            ready_color=list(self.adv["ready_color"]),
+            ready_tolerance=int(self.adv["ready_tolerance"]),
+            ready_threshold=float(self.adv["ready_threshold"]),
+            condition=self.adv["condition"],
+            condition_pct=int(self.adv["condition_pct"]),
         )
 
     def destroy(self) -> None:
@@ -305,6 +326,143 @@ class ScrollableFrame(ttk.Frame):
         self._canvas.yview_scroll(int(-e.delta / 120), "units")
 
 
+CONDITIONS = ["none", "health_below", "health_above", "resource_below", "resource_above"]
+CONDITION_LABELS = {
+    "none": "(nenhuma)",
+    "health_below": "vida abaixo de %",
+    "health_above": "vida acima de %",
+    "resource_below": "recurso abaixo de %",
+    "resource_above": "recurso acima de %",
+}
+
+
+class SkillAdvancedDialog(tk.Toplevel):
+    """Configura cooldown por ícone e cast condicional de uma skill."""
+
+    def __init__(self, app: "MacroApp", row: "SkillRow") -> None:
+        super().__init__(app)
+        self.app = app
+        self.row = row
+        self.title(f"Avançado — {row.name.get() or 'Skill'}")
+        self.resizable(False, False)
+        self.transient(app)
+        self.grab_set()
+
+        adv = row.adv
+        self.region_var = tk.StringVar(
+            value=",".join(map(str, adv["cooldown_region"]))
+            if any(adv["cooldown_region"]) else "(não definida)"
+        )
+        self.color = tk.StringVar(value=",".join(str(c) for c in adv["ready_color"]))
+        self.tol = tk.IntVar(value=adv["ready_tolerance"])
+        self.threshold = tk.IntVar(value=int(adv["ready_threshold"] * 100))
+        self._cond_label = tk.StringVar(value=CONDITION_LABELS[adv["condition"]])
+        self.cond_pct = tk.IntVar(value=adv["condition_pct"])
+
+        pad = {"padx": 8, "pady": 3}
+        cd = ttk.LabelFrame(self, text="Detecção de cooldown (ícone)")
+        cd.pack(fill="x", **pad)
+        ttk.Label(cd, text="Região:").grid(row=0, column=0, sticky="e", padx=4, pady=2)
+        ttk.Label(cd, textvariable=self.region_var).grid(row=0, column=1, columnspan=2, sticky="w")
+        ttk.Button(cd, text="Selecionar", command=self._select_region).grid(row=0, column=3, padx=4)
+        ttk.Button(cd, text="Detectar cor", command=self._detect_color).grid(row=0, column=4, padx=4)
+        ttk.Label(cd, text="Cor pronta (R,G,B):").grid(row=1, column=0, columnspan=2, sticky="e")
+        ttk.Entry(cd, textvariable=self.color, width=12).grid(row=1, column=2, sticky="w", padx=4)
+        ttk.Label(cd, text="Tolerância:").grid(row=1, column=3, sticky="e")
+        ttk.Spinbox(cd, from_=5, to=200, textvariable=self.tol, width=6).grid(row=1, column=4, padx=4)
+        ttk.Label(cd, text="Pronta acima de (%):").grid(row=2, column=0, columnspan=2, sticky="e")
+        ttk.Spinbox(cd, from_=1, to=99, textvariable=self.threshold, width=6).grid(
+            row=2, column=2, sticky="w", padx=4)
+
+        co = ttk.LabelFrame(self, text="Cast condicional")
+        co.pack(fill="x", **pad)
+        ttk.Label(co, text="Condição:").grid(row=0, column=0, sticky="e", padx=4, pady=2)
+        ttk.Combobox(co, textvariable=self._cond_label, state="readonly",
+                     values=[CONDITION_LABELS[c] for c in CONDITIONS], width=22).grid(
+            row=0, column=1, columnspan=2, sticky="w", padx=4)
+        ttk.Label(co, text="Limite (%):").grid(row=0, column=3, sticky="e")
+        ttk.Spinbox(co, from_=1, to=99, textvariable=self.cond_pct, width=6).grid(row=0, column=4, padx=4)
+
+        btns = ttk.Frame(self)
+        btns.pack(pady=8)
+        ttk.Button(btns, text="OK", command=self._save).pack(side="left", padx=4)
+        ttk.Button(btns, text="Cancelar", command=self.destroy).pack(side="left", padx=4)
+
+    def _parse_region(self) -> list[int]:
+        raw = self.region_var.get().strip("()[] ")
+        try:
+            parts = [int(x.strip()) for x in raw.split(",")]
+            if len(parts) == 4:
+                return parts
+        except Exception:
+            pass
+        return [0, 0, 0, 0]
+
+    def _select_region(self) -> None:
+        region = self.app.pick_region()
+        if region:
+            self.region_var.set(",".join(str(c) for c in region))
+
+    def _detect_color(self) -> None:
+        x1, y1, x2, y2 = self._parse_region()
+        if x2 <= x1 or y2 <= y1:
+            messagebox.showinfo("Cor", "Defina a região primeiro.")
+            return
+        try:
+            color = screen.sample_color((x1 + x2) // 2, (y1 + y2) // 2)
+        except Exception as exc:
+            messagebox.showerror("Erro", f"Falha ao ler cor: {exc}")
+            return
+        self.color.set(",".join(str(c) for c in color))
+
+    def _save(self) -> None:
+        try:
+            color = [int(c) for c in self.color.get().split(",")][:3]
+            if len(color) != 3:
+                raise ValueError
+        except Exception:
+            color = [200, 200, 200]
+        label_to_cond = {v: k for k, v in CONDITION_LABELS.items()}
+        self.row.adv = {
+            "cooldown_region": self._parse_region(),
+            "ready_color": color,
+            "ready_tolerance": int(self.tol.get() or 70),
+            "ready_threshold": int(self.threshold.get() or 50) / 100,
+            "condition": label_to_cond.get(self._cond_label.get(), "none"),
+            "condition_pct": int(self.cond_pct.get() or 50),
+        }
+        self.destroy()
+
+
+class RegionPreview(tk.Toplevel):
+    """Overlay temporário que desenha retângulos das regiões configuradas."""
+
+    def __init__(self, master: tk.Misc, regions: list[tuple[str, list[int]]]) -> None:
+        super().__init__(master)
+        vx, vy, vw, vh = _virtual_desktop()
+        if vw > 0 and vh > 0:
+            self.overrideredirect(True)
+            self.geometry(f"{vw}x{vh}+{vx}+{vy}")
+        else:
+            self.attributes("-fullscreen", True)
+            vx = vy = 0
+        self.attributes("-alpha", 0.35)
+        self.attributes("-topmost", True)
+        self.configure(bg="black")
+        canvas = tk.Canvas(self, bg="black", highlightthickness=0)
+        canvas.pack(fill="both", expand=True)
+        colors = {"vida": "#ff5555", "recurso": "#5599ff"}
+        for label, region in regions:
+            x1, y1, x2, y2 = region
+            if x2 <= x1 or y2 <= y1:
+                continue
+            col = colors.get(label, "#f9e2af")
+            canvas.create_rectangle(x1 - vx, y1 - vy, x2 - vx, y2 - vy, outline=col, width=3)
+            canvas.create_text(x1 - vx + 4, y1 - vy - 10, text=label, fill=col,
+                               anchor="w", font=("Segoe UI", 10, "bold"))
+        self.after(2500, self.destroy)
+
+
 class OptionsDialog(tk.Toplevel):
     """Janela de opções globais (Settings)."""
 
@@ -320,7 +478,9 @@ class OptionsDialog(tk.Toplevel):
         self.start_minimized = tk.BooleanVar(value=s.start_minimized)
         self.overlay_enabled = tk.BooleanVar(value=s.overlay_enabled)
         self.log_to_file = tk.BooleanVar(value=s.log_to_file)
+        self.minimize_to_tray = tk.BooleanVar(value=s.minimize_to_tray)
         self.panic_key = tk.StringVar(value=s.panic_key)
+        self.cycle_profile_key = tk.StringVar(value=s.cycle_profile_key)
 
         pad = {"padx": 10, "pady": 4}
         ttk.Checkbutton(self, text="Iniciar minimizado",
@@ -329,12 +489,17 @@ class OptionsDialog(tk.Toplevel):
                         variable=self.overlay_enabled).grid(row=1, column=0, columnspan=2, sticky="w", **pad)
         ttk.Checkbutton(self, text="Salvar log em arquivo (praxis.log)",
                         variable=self.log_to_file).grid(row=2, column=0, columnspan=2, sticky="w", **pad)
-        ttk.Label(self, text="Tecla de pânico (para tudo):").grid(row=3, column=0, sticky="w", **pad)
+        ttk.Checkbutton(self, text="Minimizar para a bandeja (system tray)",
+                        variable=self.minimize_to_tray).grid(row=3, column=0, columnspan=2, sticky="w", **pad)
+        ttk.Label(self, text="Tecla de pânico (para tudo):").grid(row=4, column=0, sticky="w", **pad)
         ttk.Combobox(self, textvariable=self.panic_key, values=KEY_VALUES,
-                     width=10).grid(row=3, column=1, sticky="w", **pad)
+                     width=10).grid(row=4, column=1, sticky="w", **pad)
+        ttk.Label(self, text="Tecla trocar perfil:").grid(row=5, column=0, sticky="w", **pad)
+        ttk.Combobox(self, textvariable=self.cycle_profile_key, values=[""] + KEY_VALUES,
+                     width=10).grid(row=5, column=1, sticky="w", **pad)
 
         btns = ttk.Frame(self)
-        btns.grid(row=4, column=0, columnspan=2, pady=8)
+        btns.grid(row=6, column=0, columnspan=2, pady=8)
         ttk.Button(btns, text="Salvar", command=self._save).pack(side="left", padx=4)
         ttk.Button(btns, text="Cancelar", command=self.destroy).pack(side="left", padx=4)
 
@@ -344,6 +509,8 @@ class OptionsDialog(tk.Toplevel):
             overlay_enabled=self.overlay_enabled.get(),
             panic_key=self.panic_key.get().strip().lower() or "f9",
             log_to_file=self.log_to_file.get(),
+            minimize_to_tray=self.minimize_to_tray.get(),
+            cycle_profile_key=self.cycle_profile_key.get().strip().lower(),
         )
         config.save_settings(self.app.settings)
         self.app._apply_settings()
@@ -361,11 +528,13 @@ class MacroApp(tk.Tk):
         self.engine = MacroEngine(log=self.log)
         self.hotkeys = HotkeyManager()
         self.panic_hotkeys = HotkeyManager()
+        self.profile_hotkeys = HotkeyManager()
         self.skill_rows: list[SkillRow] = []
         self.combo_rows: list[ComboStepRow] = []
         self._pending_update: updater.UpdateInfo | None = None
         self.settings = config.load_settings()
         self.overlay: StatusOverlay | None = None
+        self.tray = None
 
         self._build()
         self._load_initial_profile()
@@ -400,6 +569,8 @@ class MacroApp(tk.Tk):
         self.toggle_btn.pack(side="left")
         self.status_lbl = ttk.Label(ctrl, text="parado", foreground="gray")
         self.status_lbl.pack(side="left", padx=10)
+        ttk.Button(ctrl, text="Preview regiões",
+                   command=self._preview_regions).pack(side="left", padx=4)
         ttk.Button(ctrl, text="Verificar atualizações",
                    command=self._check_update_async).pack(side="right")
 
@@ -446,8 +617,8 @@ class MacroApp(tk.Tk):
         sk.pack(fill="both", **pad)
         header = ttk.Frame(sk)
         header.pack(fill="x")
-        for i, txt in enumerate(["On", "Nome", "Tecla", "ms", "Hold"]):
-            ttk.Label(header, text=txt, width=[4, 14, 10, 9, 5][i],
+        for i, txt in enumerate(["On", "Nome", "Tecla", "ms", "Hold", "Avç"]):
+            ttk.Label(header, text=txt, width=[4, 13, 10, 8, 5, 4][i],
                       anchor="w").grid(row=0, column=i, padx=2)
         self.skills_container = ttk.Frame(sk)
         self.skills_container.pack(fill="both", expand=True)
@@ -488,7 +659,7 @@ class MacroApp(tk.Tk):
     # --- skills ------------------------------------------------------------
 
     def _add_skill_row(self, skill: Skill) -> None:
-        row = SkillRow(self.skills_container, skill, self._remove_skill_row)
+        row = SkillRow(self.skills_container, skill, self._remove_skill_row, self)
         self.skill_rows.append(row)
 
     def _remove_skill_row(self, row: SkillRow) -> None:
@@ -661,6 +832,66 @@ class MacroApp(tk.Tk):
             if panic and panic == toggle:
                 self.log("[!] tecla de pânico igual à de liga/desliga — ignorada")
 
+        # Tecla de trocar perfil (precisa diferir de toggle e pânico)
+        cycle = self.settings.cycle_profile_key.strip().lower()
+        if cycle and cycle not in (toggle, panic) and self.profile_hotkeys.available:
+            ok = self.profile_hotkeys.register(cycle, lambda: self.after(0, self._cycle_profile))
+            self.log(f"Tecla trocar perfil '{cycle}' {'registrada' if ok else 'FALHOU'}")
+        else:
+            self.profile_hotkeys.unregister()
+            if cycle and cycle in (toggle, panic):
+                self.log("[!] tecla de trocar perfil conflita com outra — ignorada")
+
+        # System tray
+        self._apply_tray()
+
+    def _apply_tray(self) -> None:
+        if self.settings.minimize_to_tray and self.tray is None:
+            try:
+                from .tray import TrayController
+                self.tray = TrayController(
+                    on_show=lambda: self.after(0, self._restore_window),
+                    on_toggle=lambda: self.after(0, self._toggle),
+                    on_quit=lambda: self.after(0, self._quit_from_tray),
+                )
+                self.tray.start()
+            except Exception as exc:
+                self.tray = None
+                self.log(f"[!] system tray indisponível: {exc}")
+        elif not self.settings.minimize_to_tray and self.tray is not None:
+            self.tray.stop()
+            self.tray = None
+
+    def _restore_window(self) -> None:
+        self.deiconify()
+        self.lift()
+
+    def _quit_from_tray(self) -> None:
+        self._closing_to_tray = False
+        self._on_close()
+
+    def _hide_to_tray(self) -> None:
+        self.withdraw()
+        self.log("Minimizado para a bandeja.")
+
+    def _cycle_profile(self) -> None:
+        names = config.list_profiles()
+        if not names:
+            return
+        cur = self.profile_var.get()
+        idx = names.index(cur) + 1 if cur in names else 0
+        self.profile_var.set(names[idx % len(names)])
+        self._on_pick_profile()
+        self.log(f"Perfil -> {self.profile_var.get()}")
+
+    def _preview_regions(self) -> None:
+        prof = self._form_to_profile()
+        regions = [("vida", prof.potion.region), ("recurso", prof.resource.region)]
+        for sk in prof.skills:
+            if sk.has_cooldown_check():
+                regions.append((f"cd:{sk.name}", sk.cooldown_region))
+        RegionPreview(self, regions)
+
     def _panic_fired(self) -> None:
         self.after(0, self._panic)
 
@@ -733,11 +964,19 @@ class MacroApp(tk.Tk):
                 pass
 
     def _on_close(self) -> None:
+        # Se "minimizar para bandeja" estiver ativo e o tray disponível, esconde
+        # em vez de fechar (a saída definitiva vem pelo menu do tray).
+        if self.settings.minimize_to_tray and self.tray is not None:
+            self._hide_to_tray()
+            return
         self.engine.stop()
         self.hotkeys.unregister()
         self.panic_hotkeys.unregister()
+        self.profile_hotkeys.unregister()
         if self.overlay is not None:
             self.overlay.destroy()
+        if self.tray is not None:
+            self.tray.stop()
         self.destroy()
 
 

@@ -8,6 +8,24 @@ def test_skill_roundtrip():
     assert Skill.from_dict(s.to_dict()) == s
 
 
+def test_skill_advanced_roundtrip():
+    s = Skill(
+        key="3", cooldown_region=[10, 20, 50, 60], ready_color=[10, 240, 10],
+        ready_tolerance=40, ready_threshold=0.7, condition="health_below", condition_pct=35,
+    )
+    back = Skill.from_dict(s.to_dict())
+    assert back == s
+    assert back.has_cooldown_check() is True
+    assert Skill(key="1").has_cooldown_check() is False
+
+
+def test_skill_backward_compatible():
+    s = Skill.from_dict({"key": "1"})  # sem campos novos
+    assert s.cooldown_region == [0, 0, 0, 0]
+    assert s.condition == "none"
+    assert s.condition_pct == 50
+
+
 def test_combo_roundtrip():
     c = Combo(enabled=True, loop=False, steps=[ComboStep("1", 200), ComboStep("2", 400)])
     back = Combo.from_dict(c.to_dict())
@@ -60,5 +78,14 @@ def test_profile_backward_compatible():
 
 def test_settings_roundtrip_and_defaults():
     assert Settings.from_dict({}) == Settings()
-    s = Settings(start_minimized=True, overlay_enabled=False, panic_key="f10", log_to_file=True)
+    s = Settings(
+        start_minimized=True, overlay_enabled=False, panic_key="f10", log_to_file=True,
+        minimize_to_tray=True, cycle_profile_key="f7",
+    )
     assert Settings.from_dict(s.to_dict()) == s
+
+
+def test_settings_tray_defaults():
+    s = Settings.from_dict({})
+    assert s.minimize_to_tray is False
+    assert s.cycle_profile_key == ""

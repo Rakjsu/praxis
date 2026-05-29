@@ -13,11 +13,15 @@ via GitHub.
 
 - **Rotação de skills** — cada skill dispara uma tecla em um intervalo configurável.
 - **Skill em "hold"** — mantém uma tecla/botão pressionado (ataque básico/canalizado).
+- **Detecção de cooldown** (⚙ por skill) — só dispara quando o ícone está pronto.
+- **Cast condicional** (⚙ por skill) — dispara só quando vida/recurso está acima/abaixo de X%.
 - **Combo / sequência** — rotação ordenada com delay por passo (build rotation), com loop.
 - **Auto-poção** — lê uma região da barra de vida e usa poção quando a vida cai
   abaixo de um limite (com cooldown). Há um 2º watcher para **recurso/mana**.
 - **Jitter de tempo** — variação aleatória nos intervalos (ritmo menos robótico).
 - **Foreground-gating** — só envia input quando a janela-alvo está em foco.
+- **System tray** — minimizar para a bandeja; troca de perfil por hotkey global.
+- **Preview de regiões** — mostra na tela os retângulos das regiões configuradas.
 - **Perfis** — salve/carregue configurações por jogo (JSON). Vem com um perfil
   de exemplo para Diablo.
 - **Hotkey global** — liga/desliga o macro mesmo com o jogo em foco (padrão `F8`).

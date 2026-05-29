@@ -11,6 +11,13 @@ class Skill:
 
     Se `hold=True`, a tecla é mantida pressionada enquanto o macro estiver ativo
     (ataque básico/skill canalizada), em vez de ser pressionada em intervalos.
+
+    Detecção de cooldown (opcional): se `cooldown_region` for válida, a skill só
+    dispara quando a fração de pixels próximos de `ready_color` for >=
+    `ready_threshold` (ícone "pronto").
+
+    Cast condicional (opcional): se `condition` != "none", só dispara quando a
+    leitura de vida/recurso satisfaz a comparação com `condition_pct`.
     """
 
     name: str = "Skill"
@@ -18,9 +25,21 @@ class Skill:
     interval_ms: int = 1000
     enabled: bool = True
     hold: bool = False
+    # Detecção de cooldown por ícone
+    cooldown_region: list[int] = field(default_factory=lambda: [0, 0, 0, 0])
+    ready_color: list[int] = field(default_factory=lambda: [200, 200, 200])
+    ready_tolerance: int = 70
+    ready_threshold: float = 0.5
+    # Cast condicional
+    condition: str = "none"  # none|health_below|health_above|resource_below|resource_above
+    condition_pct: int = 50
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+    def has_cooldown_check(self) -> bool:
+        x1, y1, x2, y2 = self.cooldown_region
+        return x2 > x1 and y2 > y1
 
     @classmethod
     def from_dict(cls, data: dict) -> "Skill":
@@ -30,6 +49,12 @@ class Skill:
             interval_ms=int(data.get("interval_ms", 1000)),
             enabled=bool(data.get("enabled", True)),
             hold=bool(data.get("hold", False)),
+            cooldown_region=list(data.get("cooldown_region", [0, 0, 0, 0])),
+            ready_color=list(data.get("ready_color", [200, 200, 200])),
+            ready_tolerance=int(data.get("ready_tolerance", 70)),
+            ready_threshold=float(data.get("ready_threshold", 0.5)),
+            condition=str(data.get("condition", "none")),
+            condition_pct=int(data.get("condition_pct", 50)),
         )
 
 
@@ -107,9 +132,13 @@ class PotionRule:
             cooldown_ms=int(data.get("cooldown_ms", 2000)),
         )
 
-    def is_configured(self) -> bool:
+    def has_region(self) -> bool:
+        """Região válida (independe de estar habilitada). Usada para leitura."""
         x1, y1, x2, y2 = self.region
-        return self.enabled and x2 > x1 and y2 > y1
+        return x2 > x1 and y2 > y1
+
+    def is_configured(self) -> bool:
+        return self.enabled and self.has_region()
 
 
 @dataclass
@@ -120,6 +149,8 @@ class Settings:
     overlay_enabled: bool = True
     panic_key: str = "f9"
     log_to_file: bool = False
+    minimize_to_tray: bool = False
+    cycle_profile_key: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -131,6 +162,8 @@ class Settings:
             overlay_enabled=bool(data.get("overlay_enabled", True)),
             panic_key=str(data.get("panic_key", "f9")),
             log_to_file=bool(data.get("log_to_file", False)),
+            minimize_to_tray=bool(data.get("minimize_to_tray", False)),
+            cycle_profile_key=str(data.get("cycle_profile_key", "")),
         )
 
 
